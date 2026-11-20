@@ -37,7 +37,7 @@ CUERT's vehicle architecture divides embedded execution into two real-time nodes
 
 ### CAN Bus Message Mapping (Base `0x100`)
 
-| CAN ID | DLC | Cycle Rate | Direction | Content / Payload |
+| CAN ID | DLC | Cycle Rate | Direction | Content / Payload Description |
 |---|---|---|---|---|
 | `0x100` | 6 B | 50 Hz | Sensing $\to$ Bus | IMU Accelerometer ($a_x, a_y, a_z$ in int16_t) |
 | `0x101` | 6 B | 50 Hz | Sensing $\to$ Bus | IMU Gyroscope ($\omega_x, \omega_y, \omega_z$ in int16_t) |
@@ -85,9 +85,9 @@ Both human developers and AI coding assistants must install and verify the follo
 |---|---|---|---|
 | **Arm GNU Toolchain** | `13.2` | `14.2.Rel1` | Cross-compiling STM32 C/ASM code (`arm-none-eabi-gcc`) |
 | **CMake** | `3.22` | `3.28+` | Target firmware build orchestration |
-| **Host C Compiler** | GCC 11 / Clang 14 | GCC 14 | Running host unit test harnesses (Unity) |
-| **Make / Ninja** | Make 4.3 / Ninja 1.11 | Make 4.4 | Build script execution |
-| **Cppcheck** | `2.12` | `2.14+` | Automated static code analysis & safety audits |
+| **Host C Compiler** | GCC 11 / Clang 14 | GCC 14 | Running host unit test harnesses |
+| **Make / Ninja** | Make 4.3 / Ninja 1.11 | Ninja / Make 4.4 | High-speed build script execution |
+| **Clang-Format** | `14.0` | `18.0+` | Automated code styling enforcement (LLVM 4-space) |
 | **OpenOCD** | `0.11` | `0.12+` | Hardware debugging and target flashing via ST-LINK |
 
 ### Installation Instructions
@@ -95,23 +95,22 @@ Both human developers and AI coding assistants must install and verify the follo
 #### Linux (Arch Linux / EndeavourOS / Ubuntu / Debian)
 ```bash
 # EndeavourOS / Arch Linux:
-sudo pacman -S --needed base-devel cmake cppcheck arm-none-eabi-gcc arm-none-eabi-newlib openocd
+sudo pacman -S --needed git cmake ninja arm-none-eabi-gcc arm-none-eabi-newlib clang openocd
 
-# Ubuntu 22.04 / 24.04:
+# Ubuntu 22.04 / 24.04 / Debian:
 sudo apt-get update && sudo apt-get install -y \
-    build-essential cmake cppcheck gcc-arm-none-eabi libnewlib-arm-none-eabi openocd
+    git gcc-arm-none-eabi cmake ninja-build clang-format openocd
 ```
 
 #### Windows (Native / MSYS2 / PowerShell)
 1. Install **Arm GNU Toolchain 14.2.Rel1** from Arm Developer and add `bin/` to system `PATH`.
-2. Install **CMake** and **Make** via `winget install Kitware.CMake GnuWin32.Make` or MSYS2.
-3. Install **Cppcheck** from cppcheck.sourceforge.io and add to `PATH`.
-4. Install **STM32CubeCLT** (Command-Line Tools) for official ST-LINK GDB server and programmer CLI.
+2. Install **CMake** and **Ninja** via `winget install Kitware.CMake Ninja-build.Ninja`.
+3. Install **LLVM Clang-Format** and add to `PATH`.
+4. Install **OpenOCD** or STM32CubeCLT for target flashing.
 
 #### Verification Command
-Run this check to confirm all tools are correctly registered:
 ```bash
-arm-none-eabi-gcc --version && cmake --version && cppcheck --version && make --version
+arm-none-eabi-gcc --version && cmake --version && ninja --version && clang-format --version
 ```
 
 ---
@@ -122,28 +121,35 @@ To ensure consistency across the team, both repositories strictly follow the sam
 
 ```
 <NodeRepository>/
+├── .clang-format                # LLVM style: 4-space indent, Linux brace placement, 100 col limit
+├── .editorconfig                # UTF-8, LF line endings, trailing whitespace trimming
+├── .gitattributes               # Auto LF normalisation, binary PDF declaration
 ├── .github/
+│   ├── CODEOWNERS               # Explicit lead code owners (* @abdelwadoud299 / * @Eyad-Attwa231)
+│   ├── pull_request_template.md # Mandatory PR checklist, Linear link, target gate confirmation
 │   └── workflows/
-│       └── ci.yml               # 3-Gate automated CI pipeline (Ubuntu 24.04)
-├── <NodeName>/                  # Firmware root (ActuatorNode or SensingNode)
-│   ├── Core/
-│   │   ├── Inc/                 # Application headers (main.h, stm32g4xx_it.h)
-│   │   └── Src/                 # Application source (main.c, ISRs, MSP, syscalls)
-│   ├── cmake/
-│   │   ├── gcc-arm-none-eabi.cmake  # Architecture flags (-mcpu=cortex-m4 -mfpu=fpv4-sp-d16)
-│   │   └── stm32cubemx/         # CubeMX generator wrapper
-│   ├── CMakeLists.txt           # Firmware build specification
-│   ├── STM32G431RBTx_FLASH.ld   # Memory layout (128K Flash, 32K RAM, 10K CCM)
-│   └── startup_stm32g431xx.s    # Reset_Handler and vector table
-├── docs/                        # Architecture diagrams and specifications
-├── test/                        # Host-based automated unit test harness
-│   ├── unity/                   # Unity test framework
-│   ├── stubs/                   # Hardware abstraction mocks (GPIO, Timers, CAN)
-│   ├── test_<module>.c          # Test suites
-│   ├── test_runner.c            # Test runner entry point
-│   └── Makefile                 # Host test execution script
-├── .gitignore                   # Ignore build artifacts, .hex, .elf, and IDE files
-└── README.md                    # Primary repository onboarding guide
+│       └── ci.yml               # 3-Gate automated CI pipeline (Ubuntu 24.04: flow, format, build)
+├── .gitignore                   # Ignores build/, *.elf, *.bin, *.map, .vscode/, .idea/
+├── CMakeLists.txt               # Top-level firmware build definition with hard-float Cortex-M4 flags
+├── CMakePresets.json            # Ninja release build preset (output to build/)
+├── README.md                    # Repository guide, pin mapping, architecture, and roles
+├── app/
+│   └── main.c                   # Main firmware entry point (initializes BSP, executes 1 Hz blink loop)
+├── bsp/
+│   ├── board.c                  # Direct register-level RCC, GPIO, SysTick setup (no HAL overhead)
+│   └── board.h                  # Board-level prototypes (board_init, board_led_toggle, board_delay_ms)
+├── cmake/
+│   └── arm-none-eabi.cmake      # Arm cross-toolchain definitions (Cortex-M4 hard-float ABI)
+├── docs/                        # Architecture diagrams, specifications, and setup documentation
+├── drivers/                     # Subsystem drivers (DC throttle, stepper steering, BLDC braking)
+├── middleware/                  # Safety supervisors, CAN parsers, slew limiters
+├── platform/
+│   ├── STM32G431RBTx_FLASH.ld   # Memory map: 128 KB Flash @ 0x08000000, 32 KB SRAM @ 0x20000000
+│   └── startup.c                # Reset_Handler, vector table, data/bss copy, SysTick_Handler
+├── scripts/
+│   ├── flash.sh                 # OpenOCD target flashing script for NUCLEO-G431RB
+│   └── setup-repo.sh            # GitHub branch protection & review enforcement script
+└── tests/                       # Unit test suites and hardware abstraction stubs
 ```
 
 ---
@@ -153,79 +159,66 @@ To ensure consistency across the team, both repositories strictly follow the sam
 All team members and AI assistants must follow this standardized Git workflow:
 
 ```
-[Feature Branch]  ──►  [Developing]  ──►  [Testing]  ──►  [Validating]  ──►  [main]
-Feature/<Ticket>        (Integration)      (CI Gates)      (Acceptance)       (Releases)
+[Feature / Fix]  ──►  [Developing]  ──►  [Testing]  ──►  [Validating]  ──►  [main]
+feature/<name>        (Integration)      (CI Gates)      (Acceptance)       (Releases)
 ```
 
 ### 1. Branch Strategy
-* `main`: Protected production branch. Only tagged releases.
-* `Validating`: Acceptance testing, HIL bench verification, and hardware sign-off branch.
+* `main`: Protected production branch containing `README.md` only. Direct code commits strictly forbidden.
+* `Validating`: Final vehicle validation and team hand-off branch. Requires code owner review (`@abdelwadoud299` / `@Eyad-Attwa231`).
 * `Testing`: Pre-release integration branch where automated CI gates run.
 * `Developing`: Primary active development branch where feature PRs land.
-* `Feature/<Name>`: Transient development branch (e.g., `Feature/BlinkyNucleo`, `Feature/BldcBrakeDriver`).
+* `feature/<ticket>-<desc>`: Transient development branch (e.g. `feature/EMB-actuator-scaffold-and-blink`).
 
 ### 2. Conventional Commits
 All commit messages must use structured prefixes:
 * `feat(<scope>): <short description>` — New feature or driver.
 * `fix(<scope>): <short description>` — Bug fix.
-* `test(<scope>): <short description>` — Unit tests or mock fixtures.
 * `docs(<scope>): <short description>` — Documentation or README updates.
+* `chore(<scope>): <short description>` — Tooling, scripts, or CI updates.
 * `refactor(<scope>): <short description>` — Code restructure without logic changes.
 
 ### 3. Pull Request Requirements
-Before merging into `Testing` or `Maintaining`:
-1. **Gate 1:** Host Unit Tests (Unity) must pass with 0 failures (`make -C test test-stm32`).
-2. **Gate 2:** Cppcheck static analysis must return exit code 0 (`--error-exitcode=1`).
-3. **Gate 3:** Cross-compilation under Arm GCC 14.2 must succeed without warnings.
-4. Peer review approval by the sibling node lead (Abdelwadoud $\leftrightarrow$ Eyad).
+Before merging into each target:
+1. **Gate 1 (`flow`):** Strictly rejects pull requests that skip hierarchy steps.
+2. **Gate 2 (`format`):** LLVM `clang-format` compliance check on all C/ASM sources (`--dry-run --Werror`).
+3. **Gate 3 (`build`):** Cross-compilation under Arm GNU Toolchain (`arm-none-eabi-gcc`, `-Wall -Wextra -Werror`), emitting ELF, BIN, and MAP binaries as artifacts.
+4. Peer review approval by the sibling node lead (`abdelwadoud299` $\leftrightarrow$ `Eyad-Attwa231`).
 
 ---
 
 ## 6. Standard Developer & AI Assistant Command Reference
 
-### Task 1: Run Automated Host Unit Tests
+### Task 1: Clean Build Firmware via CMake & Ninja
 ```bash
-make -C test test-stm32
-```
-*Expected Output:*
-```
-=======================================================
- Unity Automated Test Suite: test_runner.c
-=======================================================
-  PASS: test_Blinky_SingleStep_IncrementsCounterAndTogglesPin (line 21)
-  PASS: test_Blinky_MultipleCycles_AlternatesPinState (line 22)
-  PASS: test_Blinky_TimingSimulation_1HzRate (line 23)
--------------------------------------------------------
- Tests Executed: 3 | Failures: 0 | Ignored: 0
- [PASS] All unit tests completed successfully!
-=======================================================
-```
-
-### Task 2: Run Cppcheck Static Analysis
-```bash
-cppcheck --enable=warning,performance,portability \
-         --error-exitcode=1 \
-         --inline-suppr \
-         -I ActuatorNode/Core/Inc \
-         -I test/stubs \
-         ActuatorNode/Core/Src
-```
-
-### Task 3: Cross-Compile Target Firmware
-```bash
-cd ActuatorNode
-cmake -B build -G "Unix Makefiles" -DCMAKE_TOOLCHAIN_FILE=cmake/gcc-arm-none-eabi.cmake
-cmake --build build -- -j$(nproc)
+cmake --preset release
+cmake --build --preset release
 ```
 *Generated Binaries:*
-* `build/ActuatorNode.elf`
-* `build/ActuatorNode.hex`
-* `build/ActuatorNode.bin`
+* `build/actuating.elf` — Full ELF executable with DWARF debug symbols
+* `build/actuating.bin` — Raw flashable binary image
+* `build/actuating.map` — Linker symbol and memory allocation map
 
-### Task 4: Flash Nucleo-G431RB Board
+### Task 2: Flashing NUCLEO-G431RB Board via OpenOCD
 ```bash
+./scripts/flash.sh
+# Equivalent direct command:
 openocd -f interface/stlink.cfg -f target/stm32g4x.cfg \
-        -c "program build/ActuatorNode.elf verify reset exit"
+        -c "program build/actuating.elf verify reset exit"
+```
+
+### Task 3: Automated Code Formatting (LLVM Standard)
+```bash
+# Check code formatting without modifying files (CI Gate 2):
+clang-format --dry-run --Werror $(git ls-files 'app/*.[ch]' 'bsp/*.[ch]' 'platform/*.[ch]')
+
+# Auto-format in-place before committing:
+clang-format -i $(git ls-files 'app/*.[ch]' 'bsp/*.[ch]' 'platform/*.[ch]')
+```
+
+### Task 4: Enforcing GitHub Branch Protection Rules
+```bash
+./scripts/setup-repo.sh CUERT-dev/EmbeddedActuatorNode
 ```
 
 ---
@@ -234,34 +227,12 @@ openocd -f interface/stlink.cfg -f target/stm32g4x.cfg \
 
 As the baseline acceptance deliverable, both nodes initialize with clean hardware commissioning firmware blinking onboard user LED **LD2**:
 
-* **Actuator Node:** LD2 connected to **`PA5`** (Green LED, active HIGH).
-* **Sensing Node:** LD2 connected to **`PA5`** (or PC13 on legacy bluepills).
-* **Blink Rate:** **1 Hz** (500 ms ON, 500 ms OFF) driven by HAL SysTick delay.
+| Repository | Hardware Pin | Blink Specification & Rate |
+|---|---|---|
+| **EmbeddedActuatorNode** | `PA5` (LD2, Active High) | 1 Hz (500 ms ON, 500 ms OFF) via hardware SysTick |
+| **EmbeddedSensingNode** | `PA5` (LD2, Active High) | 1 Hz (500 ms ON, 500 ms OFF) via hardware SysTick |
 
 ---
 
-## 8. PDF Export Instructions
-
-To generate the final submission PDF from this Markdown document, use any of the following standard methods:
-
-### Option A: Using Pandoc with Weasyprint or XeLaTeX
-```bash
-pandoc docs/CUERT_Embedded_Nodes_Setup_and_Developer_Guide.md \
-       -o CUERT_Embedded_Nodes_Setup_and_Developer_Guide.pdf \
-       --pdf-engine=xelatex \
-       -V geometry:margin=1in
-```
-
-### Option B: Using VS Code Markdown PDF Extension
-1. Open this file in VS Code.
-2. Press `Ctrl + Shift + P` $\to$ **Markdown PDF: Export (pdf)**.
-3. The PDF will be saved in the `docs/` folder ready for upload.
-
-### Option C: Chrome / Chromium Headless CLI
-```bash
-google-chrome --headless --disable-gpu --print-to-pdf=CUERT_Embedded_Nodes_Setup_and_Developer_Guide.pdf \
-              docs/CUERT_Embedded_Nodes_Setup_and_Developer_Guide.md
-```
-
----
-*Prepared by Abdelwadoud & Eyad — CUERT Embedded & Control Team.*
+*Prepared by Abdelwadoud & Eyad — CUERT Embedded & Control Team.*  
+*Cairo University Eco-Racing Team (CUERT) — Formula Student Autonomous.*
