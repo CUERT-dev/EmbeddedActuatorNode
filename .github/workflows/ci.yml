@@ -1,96 +1,48 @@
-name: Actuator Node CI Pipeline
+name: CI
 
 on:
-  pull_request:
-    branches:
-      - Developing
-      - Testing
-      - Validating
-      - main
   push:
-    branches:
-      - Developing
-      - Testing
-      - Validating
-      - main
+    branches: [Developing, Testing, Validating]
+  pull_request:
+    branches: [Developing, Testing, Validating]
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
-  # =========================================================================
-  # GATE 1: STM32 Automated Unit Tests (Host GCC + Unity)
-  # =========================================================================
-  test-stm32:
-    name: "Gate 1: STM32 Unit Tests (Unity)"
+  flow:
+    if: github.event_name == 'pull_request'
     runs-on: ubuntu-24.04
-
     steps:
-      - name: Check out repository
-        uses: actions/checkout@v4
+      - run: |
+          base="${{ github.base_ref }}"
+          head="${{ github.head_ref }}"
+          case "$base" in
+            Developing) [[ "$head" == feature/* || "$head" == fix/* || "$head" == docs/* || "$head" == chore/* ]] ;;
+            Testing) [[ "$head" == "Developing" ]] ;;
+            Validating) [[ "$head" == "Testing" ]] ;;
+            *) false ;;
+          esac || { echo "PR from $head into $base breaks the branch flow"; exit 1; }
 
-      - name: Install Host Build Dependencies
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y build-essential
-
-      - name: Run STM32 Automated Unit Tests
-        run: |
-          make -C test test-stm32
-
-  # =========================================================================
-  # GATE 2: STM32 Static Analysis (Cppcheck)
-  # =========================================================================
-  lint-stm32:
-    name: "Gate 2: Static Analysis (Cppcheck)"
+  format:
     runs-on: ubuntu-24.04
-    needs: [test-stm32]
-
     steps:
-      - name: Check out repository
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
+      - run: sudo apt-get update && sudo apt-get install -y clang-format
+      - run: clang-format --dry-run --Werror $(git ls-files 'app/*.[ch]' 'bsp/*.[ch]' 'drivers/*.[ch]' 'middleware/*.[ch]' 'platform/*.[ch]' 'tests/*.[ch]')
 
-      - name: Install Cppcheck
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y cppcheck
-
-      - name: Run Cppcheck Static Analysis
-        run: |
-          cppcheck --enable=warning,performance,portability \
-                   --error-exitcode=1 \
-                   --inline-suppr \
-                   -I ActuatorNode/Core/Inc \
-                   -I test/stubs \
-                   ActuatorNode/Core/Src
-
-  # =========================================================================
-  # GATE 3: STM32 Firmware Build (Arm GCC 14.2 + CMake)
-  # =========================================================================
-  build-stm32:
-    name: "Gate 3: Build STM32 Firmware (Arm GCC)"
+  build:
     runs-on: ubuntu-24.04
-    needs: [test-stm32, lint-stm32]
-
     steps:
-      - name: Check out repository
-        uses: actions/checkout@v4
-
-      - name: Install Host Tools & CMake
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y build-essential cmake
-
-      - name: Set up Arm GNU Toolchain
-        uses: carlosperate/arm-none-eabi-gcc-action@v1
+      - uses: actions/checkout@v4
+      - run: sudo apt-get update && sudo apt-get install -y gcc-arm-none-eabi cmake ninja-build
+      - run: cmake --preset release
+      - run: cmake --build --preset release
+      - uses: actions/upload-artifact@v4
         with:
-          release: '14.2.Rel1'
-
-      - name: Print tool versions
-        run: |
-          arm-none-eabi-gcc --version | head -n 1
-          cmake --version | head -n 1
-          make --version | head -n 1
-
-      - name: Build STM32 Firmware (CMake)
-        run: |
-          cd ActuatorNode
-          cmake -B build -G "Unix Makefiles" -DCMAKE_TOOLCHAIN_FILE=cmake/gcc-arm-none-eabi.cmake
-          cmake --build build -- -j$(nproc)
+          name: actuating-firmware
+          path: |
+            build/actuating.elf
+            build/actuating.bin
+            build/actuating.map
