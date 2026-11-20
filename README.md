@@ -110,14 +110,15 @@ sudo apt-get update && sudo apt-get install -y build-essential cmake cppcheck gc
 To maintain strict synchronization with `EmbeddedSensingNode`, both repositories follow an identical automotive branching model:
 
 ```
-feature/<ticket-name>  ──┐ (Pull Request + 3 CI Gates)
-                         ▼
-                     [Testing]  ───────►  [Maintaining]  ───────►  [main]
-                  (Integration CI)     (Accepted Stable)       (Release Tags)
+[Feature Branch] ──► [Developing] ──► [Testing] ──► [Validating] ──► [main]
+(Local Working)     (Integration)    (CI Gates)   (Acceptance)    (Releases)
 ```
 
-1. **Branching:**
-   * Branch off `Maintaining` or `Testing` into a descriptive feature branch: `Feature/<TaskName>` (e.g., `Feature/BlinkyNucleo`, `Feature/CanDriver`).
+1. **Branch Roles:**
+   * **`Developing`**: Active development and developer feature PRs.
+   * **`Testing`**: Staging branch where automated CI gates run.
+   * **`Validating`**: Formal acceptance testing, HIL verification, and hardware sign-off.
+   * **`main`**: Production releases.
 2. **Commit Conventions:**
    * Format commits following Conventional Commits:
      * `feat(actuator): implement EVLDRIVE102BH brake ramp control`

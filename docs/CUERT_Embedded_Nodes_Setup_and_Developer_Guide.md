@@ -153,14 +153,15 @@ To ensure consistency across the team, both repositories strictly follow the sam
 All team members and AI assistants must follow this standardized Git workflow:
 
 ```
-[Feature Branch]  ──(PR + 3 Gates Pass)──►  [Testing]  ──(Merge)──►  [Maintaining]  ──►  [main]
-Feature/<Ticket>                             (CI Checks)           (Accepted Core)       (Releases)
+[Feature Branch]  ──►  [Developing]  ──►  [Testing]  ──►  [Validating]  ──►  [main]
+Feature/<Ticket>        (Integration)      (CI Gates)      (Acceptance)       (Releases)
 ```
 
 ### 1. Branch Strategy
 * `main`: Protected production branch. Only tagged releases.
-* `Maintaining`: Protected primary development branch. Stable, reviewed code.
+* `Validating`: Acceptance testing, HIL bench verification, and hardware sign-off branch.
 * `Testing`: Pre-release integration branch where automated CI gates run.
+* `Developing`: Primary active development branch where feature PRs land.
 * `Feature/<Name>`: Transient development branch (e.g., `Feature/BlinkyNucleo`, `Feature/BldcBrakeDriver`).
 
 ### 2. Conventional Commits
