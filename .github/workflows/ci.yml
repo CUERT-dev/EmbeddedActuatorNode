@@ -2,9 +2,9 @@ name: CI
 
 on:
   push:
-    branches: [Developing, Testing, Validating]
+    branches: [Developing, Maintaining, Validating]
   pull_request:
-    branches: [Developing, Testing, Validating]
+    branches: [Developing, Maintaining, Validating, main]
 
 concurrency:
   group: ci-${{ github.ref }}
@@ -12,16 +12,32 @@ concurrency:
 
 jobs:
   flow:
-    if: github.event_name == 'pull_request'
     runs-on: ubuntu-24.04
     steps:
-      - run: |
-          base="${{ github.base_ref }}"
-          head="${{ github.head_ref }}"
+      - name: Check push branch
+        if: github.event_name == 'push'
+        run: |
+          case "$GITHUB_REF" in
+            refs/heads/Developing|refs/heads/Maintaining|refs/heads/Validating)
+              echo "Push to $GITHUB_REF_NAME follows the branch flow"
+              ;;
+            *)
+              echo "Push to $GITHUB_REF breaks the branch flow"
+              exit 1
+              ;;
+          esac
+
+      - name: Check pull request branch flow
+        if: github.event_name == 'pull_request'
+        env:
+          base: ${{ github.base_ref }}
+          head: ${{ github.head_ref }}
+        run: |
           case "$base" in
-            Developing) [[ "$head" == feature/* || "$head" == fix/* || "$head" == docs/* || "$head" == chore/* ]] ;;
-            Testing) [[ "$head" == "Developing" ]] ;;
-            Validating) [[ "$head" == "Testing" ]] ;;
+            Developing) [[ "$head" == Feature/* || "$head" == Fix/* || "$head" == Docs/* || "$head" == Chore/* || "$head" == feature/* || "$head" == fix/* || "$head" == docs/* || "$head" == chore/* ]] ;;
+            Maintaining) [[ "$head" == "Developing" ]] ;;
+            Validating) [[ "$head" == "Maintaining" ]] ;;
+            main) [[ "$head" == "Validating" ]] ;;
             *) false ;;
           esac || { echo "PR from $head into $base breaks the branch flow"; exit 1; }
 
@@ -30,7 +46,12 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - run: sudo apt-get update && sudo apt-get install -y clang-format
-      - run: clang-format --dry-run --Werror $(git ls-files 'app/*.[ch]' 'bsp/*.[ch]' 'drivers/*.[ch]' 'middleware/*.[ch]' 'platform/*.[ch]' 'tests/*.[ch]')
+      - name: Check project formatting
+        run: |
+          git ls-files -z -- \
+            'drivers/*.[ch]' 'middleware/*.[ch]' 'tests/*.[ch]' \
+            ':!drivers/CMSIS/**' ':!drivers/STM32G4xx_HAL_Driver/**' ':!drivers/BSP/**' |
+            xargs -0 -r clang-format --dry-run --Werror
 
   build:
     runs-on: ubuntu-24.04

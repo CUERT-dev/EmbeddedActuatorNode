@@ -3,9 +3,10 @@
 ## Linked Linear issue
 
 ## Target
-- [ ] feature or fix into Developing
-- [ ] Developing into Testing
-- [ ] Testing into Validating
+- [ ] Feature or Fix into Developing
+- [ ] Developing into Maintaining
+- [ ] Maintaining into Validating
+- [ ] Validating into main
 
 ## Checklist
 - [ ] CI is green
