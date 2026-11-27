@@ -19,7 +19,7 @@ JSON
 
 CHECKS='{ "strict": true, "contexts": ["flow", "format", "build"] }'
 
-protect main null 1 true
+protect main "$CHECKS" 1 true
 protect Developing "$CHECKS" 1 false
 protect Maintaining "$CHECKS" 1 false
 protect Validating "$CHECKS" 1 true
