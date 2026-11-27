@@ -19,9 +19,9 @@ JSON
 
 CHECKS='{ "strict": true, "contexts": ["flow", "format", "build"] }'
 
-protect main null 1 true
+protect main "$CHECKS" 1 true
 protect Developing "$CHECKS" 1 false
-protect Testing "$CHECKS" 1 false
+protect Maintaining "$CHECKS" 1 false
 protect Validating "$CHECKS" 1 true
 
 gh api -X PATCH "repos/$REPO" -F delete_branch_on_merge=false -F allow_squash_merge=true -F allow_merge_commit=true -F allow_rebase_merge=false
